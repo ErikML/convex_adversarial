@@ -13,7 +13,7 @@ import warnings
 class DualNetwork(nn.Module):   
     def __init__(self, net, X, epsilon, 
                  proj=None, norm_type='l1', bounded_input=False, 
-                 data_parallel=True):
+                 data_parallel=True, holes=None, size=None):
         """  
         This class creates the dual network. 
 
@@ -45,7 +45,7 @@ class DualNetwork(nn.Module):
 
 
         # Use the bounded boxes
-        dual_net = [select_input(X, epsilon, proj, norm_type, bounded_input)]
+        dual_net = [select_input(X, epsilon, proj, norm_type, bounded_input, holes, size)]
 
         for i,(in_f,out_f,layer) in enumerate(zip(nf[:-1], nf[1:], net)): 
             dual_layer = select_layer(layer, dual_net, X, proj, norm_type,
