@@ -3,7 +3,7 @@ import torch.nn as nn
 
 from .dual import DualObject
 
-def select_input(X, epsilon, proj, norm, bounded_input):
+def select_input(X, epsilon, proj, norm, bounded_input, holes=None, size=None):
     if proj is not None and norm=='l1_median' and X[0].numel() > proj:
         if bounded_input: 
             return InfBallProjBounded(X,epsilon,proj)
@@ -13,7 +13,7 @@ def select_input(X, epsilon, proj, norm, bounded_input):
         if bounded_input: 
             return InfBallBounded(X, epsilon)
         else:
-            return InfBall(X, epsilon)
+            return InfBall(X, epsilon, holes, size)
     elif proj is not None and norm=='l2_normal' and X[0].numel() > proj: 
         return L2BallProj(X,epsilon,proj)
     elif norm == 'l2': 
@@ -21,8 +21,9 @@ def select_input(X, epsilon, proj, norm, bounded_input):
     else: 
         raise ValueError("Unknown estimation type: {}".format(norm))
 
+
 class InfBall(DualObject):
-    def __init__(self, X, epsilon): 
+    def __init__(self, X, epsilon, holes=None, size=None): 
         super(InfBall, self).__init__()
         self.epsilon = epsilon
 
@@ -31,13 +32,20 @@ class InfBall(DualObject):
         self.nu_1 = [X.new(n,n)]
         torch.eye(n, out=self.nu_1[0])
         self.nu_1[0] = self.nu_1[0].view(-1,*X.size()[1:]).unsqueeze(0)
+        if holes is not None:
+            weight = torch.ones(size, size)
+            for i, j in holes:
+                weight[i, j] = 0.0
+            self.holes = weight
+        else:
+            self.holes = None
 
-    def apply(self, dual_layer): 
+    def apply(self, dual_layer):
         self.nu_x.append(dual_layer(*self.nu_x))
         self.nu_1.append(dual_layer(*self.nu_1))
 
     def bounds(self, network=None): 
-        if network is None: 
+        if network is None:
             nu_1 = self.nu_1[-1]
             nu_x = self.nu_x[-1]
         else:
@@ -45,11 +53,15 @@ class InfBall(DualObject):
             nu_x = network(self.nu_x[0])
 
         epsilon = self.epsilon
-        l1 = nu_1.abs().sum(1)
+        if self.holes is None:
+            l1 = nu_1.abs().sum(1)
+        else:
+            weight = self.holes
+            weight = weight.view(1, -1, 1, 1, 1)
+            l1 = (nu_1 * weight).abs().sum(1)
         if isinstance(epsilon, torch.Tensor): 
             while epsilon.dim() < nu_x.dim(): 
                 epsilon = epsilon.unsqueeze(1)
-
         return (nu_x - epsilon*l1, 
                 nu_x + epsilon*l1)
 
@@ -61,7 +73,12 @@ class InfBall(DualObject):
         if isinstance(self.epsilon, torch.Tensor): 
             while epsilon.dim() < nu.dim()-1: 
                 epsilon = epsilon.unsqueeze(1)
-        l1 = epsilon*nu.abs().sum(2)
+        if self.holes is None:
+            l1 = epsilon*nu.abs().sum(2)
+        else:
+            nu_weighted = nus[-1] * self.holes
+            nu_weighted = nus[-1].view(nu_weighted.size(0), nu_weighted.size(1), -1)
+            l1 = epsilon * nu_weighted.abs().sum(2)
         return -nu_x - l1
 
 class InfBallBounded(DualObject):

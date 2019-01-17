@@ -4,6 +4,7 @@ import torch.nn.functional as F
 
 from .dual import DualLayer
 from .utils import full_bias, Dense
+from .new_layers import Window, apply_on_last_n_dim, AddBias
 
 def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
                  zl=None, zu=None):
@@ -11,7 +12,7 @@ def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
         return DualLinear(layer, out_f)
     elif isinstance(layer, nn.Conv2d): 
         return DualConv2d(layer, out_f)
-    elif isinstance(layer, nn.ReLU):   
+    elif isinstance(layer, nn.ReLU):
         if zl is None and zu is None:
             zl, zu = zip(*[l.bounds() for l in dual_net])
             zl, zu = sum(zl), sum(zu)
@@ -29,6 +30,10 @@ def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
         return DualDense(layer, dual_net, out_f)
     elif isinstance(layer, nn.BatchNorm2d):
         return DualBatchNorm2d(layer, zsi, out_f)
+    elif isinstance(layer, Window):
+        return DualWindow(layer)
+    elif isinstance(layer, AddBias):
+        return DualAddBias(layer)
     else:
         print(layer)
         raise ValueError("No module for layer {}".format(str(layer.__class__.__name__)))
@@ -37,6 +42,39 @@ def batch(A, n):
     return A.view(n, -1, *A.size()[1:])
 def unbatch(A): 
     return A.view(-1, *A.size()[2:])
+
+class DualAddBias(DualLayer):
+    def __init__(self, layer):
+        super(DualAddBias, self).__init__()
+        self.layer = layer
+        self.bias = [self.layer.bias]
+
+    def apply(self, dual_layer):
+        self.bias.append(dual_layer(*self.bias))
+
+
+    def bounds(self, network=None):
+        if network is None:
+            b = self.bias[-1]
+        else:
+            b = network(self.bias[0])
+        if b is None:
+            return 0, 0
+        return b, b
+
+    def objective(self, *nus): 
+        nu = nus[-2]
+        nu = nu.view(nu.size(0), nu.size(1), -1)
+        return -nu.matmul(self.bias[0].view(-1))
+
+    def forward(self, *xs): 
+        x = xs[-1]
+        return x
+
+    def T(self, *xs): 
+        x = xs[-1]
+        return x
+
 
 class DualLinear(DualLayer): 
     def __init__(self, layer, out_features): 
@@ -143,6 +181,38 @@ class DualConv2d(DualLinear):
         if xs[-1].dim() == 5:  
             out = batch(out, n)
         return out
+
+
+class DualWindow(DualLayer):
+    def __init__(self, layer):
+        super(DualWindow, self).__init__()
+        self.layer = layer
+
+    def forward(self, *xs):
+        x = xs[-1]
+        if x is None:
+            return None
+        out = self.layer(x)
+        return self.layer(x)
+
+    def T(self, *xs):
+        x = xs[-1]
+        if x is None:
+            return None
+        def fn(t):
+            output = torch.zeros(t.size(0), self.layer.input_shape[0], self.layer.input_shape[1], self.layer.input_shape[2])
+            output[:, :, self.layer.i : self.layer.i + self.layer.size, self.layer.j : self.layer.j + self.layer.size] = t
+            return output
+        return apply_on_last_n_dim(x, fn, 3)
+
+    def apply(self, dual_layer):
+        pass
+
+    def bounds(self, network=None):
+        return 0, 0
+
+    def objective(self, *nus):
+        return 0
 
 class DualReshape(DualLayer): 
     def __init__(self, in_f, out_f): 
@@ -336,6 +406,10 @@ class DualDense(DualLayer):
                 dual_layer = DualLinear(W, out_features)
             elif isinstance(W, nn.Sequential) and len(W) == 0: 
                 dual_layer = Identity()
+            elif isinstance(W, AddBias):
+                dual_layer = DualAddBias(W)
+            elif isinstance(W, Window):
+                dual_layer = DualWindow(W)
             elif W is None:
                 dual_layer = None
             else:
@@ -453,6 +527,7 @@ class DualBatchNorm2d(DualLayer):
         d = self.ds[0].view(-1)
         nu = nu.view(nu.size(0), nu.size(1), -1)
         return -nu.matmul(d)
+
 
 class Identity(DualLayer): 
     def forward(self, *xs): 
