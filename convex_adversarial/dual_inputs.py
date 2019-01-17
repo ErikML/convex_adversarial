@@ -33,7 +33,7 @@ class InfBall(DualObject):
         torch.eye(n, out=self.nu_1[0])
         self.nu_1[0] = self.nu_1[0].view(-1,*X.size()[1:]).unsqueeze(0)
         if holes is not None:
-            weight = torch.ones(size, size)
+            weight = torch.ones_like(X[0,0])
             for i, j in holes:
                 weight[i, j] = 0.0
             self.holes = weight
