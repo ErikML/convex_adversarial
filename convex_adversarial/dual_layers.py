@@ -200,7 +200,7 @@ class DualWindow(DualLayer):
         if x is None:
             return None
         def fn(t):
-            output = torch.zeros(t.size(0), self.layer.input_shape[0], self.layer.input_shape[1], self.layer.input_shape[2])
+            output = t.new_zeros([t.size(0), self.layer.input_shape[0], self.layer.input_shape[1], self.layer.input_shape[2]])
             output[:, :, self.layer.i : self.layer.i + self.layer.size, self.layer.j : self.layer.j + self.layer.size] = t
             return output
         return apply_on_last_n_dim(x, fn, 3)

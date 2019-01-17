@@ -70,7 +70,6 @@ class DualNetwork(nn.Module):
         for l in reversed(self.dual_net[1:]): 
             nu.append(l.T(*nu))
         dual_net = self.dual_net + [self.last_layer]
-        print(nu)
         return sum(l.objective(*nu[:min(len(dual_net)-i+1, len(dual_net))]) for
            i,l in enumerate(dual_net))
 
