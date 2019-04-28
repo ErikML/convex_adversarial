@@ -4,7 +4,7 @@ import torch.nn.functional as F
 
 from .dual import DualLayer
 from .utils import full_bias, Dense
-from .new_layers import Window, apply_on_last_n_dim, AddBias
+from .new_layers import Window, apply_on_last_n_dim, AddBias, ExtractCliques
 
 def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
                  zl=None, zu=None):
@@ -34,6 +34,8 @@ def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
         return DualWindow(layer)
     elif isinstance(layer, AddBias):
         return DualAddBias(layer)
+    elif isinstance(layer, ExtractCliques):
+        return DualExtractCliques(layer)
     else:
         print(layer)
         raise ValueError("No module for layer {}".format(str(layer.__class__.__name__)))
@@ -162,8 +164,9 @@ class DualConv2d(DualLinear):
             n = x.size(0)
             x = unbatch(x)
         out = conv2d(x, self.layer.weight, 
-                       stride=self.layer.stride,
-                       padding=self.layer.padding)
+                        stride=self.layer.stride,
+                        padding=self.layer.padding,
+                        groups=self.layer.groups)
         if xs[-1].dim() == 5:  
             out = batch(out, n)
         return out
@@ -176,8 +179,9 @@ class DualConv2d(DualLinear):
             n = x.size(0)
             x = unbatch(x)
         out = conv_transpose2d(x, self.layer.weight, 
-                                 stride=self.layer.stride,
-                                 padding=self.layer.padding)
+                                  stride=self.layer.stride,
+                                  padding=self.layer.padding,
+                                  groups=self.layer.groups)
         if xs[-1].dim() == 5:  
             out = batch(out, n)
         return out
@@ -213,6 +217,44 @@ class DualWindow(DualLayer):
 
     def objective(self, *nus):
         return 0
+
+
+class DualExtractCliques(DualLayer):
+
+    def __init__(self, layer):
+        super(DualExtractCliques, self).__init__()
+        self.layer = layer
+
+    def forward(self, *xs):
+        x = xs[-1]
+        if x is None:
+            return None
+        out = self.layer(x)
+        return self.layer(x)
+
+    def T(self, *xs):
+        x = xs[-1]
+        if x is None:
+            return None
+        def fn(z):
+            batch_size = z.size(0)
+            z = z.permute(0, 2, 3, 1).contiguous()
+            z = z.view(batch_size, self.layer.clique_size**2, -1)
+            return F.fold(z, self.layer.input_size,
+                             self.layer.clique_size,
+                             padding=self.layer.clique_size - 1)
+
+        return apply_on_last_n_dim(x, fn, n=3)
+
+    def apply(self, dual_layer):
+        pass
+
+    def bounds(self, network=None):
+        return 0, 0
+
+    def objective(self, *nus):
+        return 0        
+
 
 class DualReshape(DualLayer): 
     def __init__(self, in_f, out_f): 

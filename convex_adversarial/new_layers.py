@@ -1,6 +1,7 @@
 import torch
 import torch.nn as nn
 import numpy as np
+import torch.nn.functional as F
 
 def apply_on_last_n_dim(tensor, fn, n):
   initial_sizes = tensor.size()
@@ -32,4 +33,25 @@ class AddBias(nn.Module):
 
   def forward(self, x):
     return x + self.bias
+
+
+class ExtractCliques(nn.Module):
+
+  def __init__(self, clique_size, input_size):
+    super(ExtractCliques, self).__init__()
+    self.clique_size = clique_size
+    self.input_size = input_size
+
+  def forward(self, x):
+    def fn(z):
+      batch_size = z.size(0)
+      patches = F.unfold(z, self.clique_size, padding=self.clique_size - 1)
+      return patches.view(batch_size, self.clique_size, self.clique_size, -1) \
+                    .permute(0, 3, 1, 2).contiguous()
+    return apply_on_last_n_dim(x, fn, n=3)
+
+
+class Flatten(nn.Module):
+    def forward(self, x):
+        return x.view(x.size(0), -1)
 
