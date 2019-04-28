@@ -45,7 +45,7 @@ class ExtractCliques(nn.Module):
   def forward(self, x):
     def fn(z):
       batch_size = z.size(0)
-      patches = F.unfold(z, self.clique_size, padding=self.clique_size - 1)
+      patches = F.unfold(z, self.clique_size, padding=0)
       return patches.view(batch_size, self.clique_size, self.clique_size, -1) \
                     .permute(0, 3, 1, 2).contiguous()
     return apply_on_last_n_dim(x, fn, n=3)

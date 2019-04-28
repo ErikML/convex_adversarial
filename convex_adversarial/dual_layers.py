@@ -242,7 +242,7 @@ class DualExtractCliques(DualLayer):
             z = z.view(batch_size, self.layer.clique_size**2, -1)
             return F.fold(z, self.layer.input_size,
                              self.layer.clique_size,
-                             padding=self.layer.clique_size - 1)
+                             padding=0)
 
         return apply_on_last_n_dim(x, fn, n=3)
 
