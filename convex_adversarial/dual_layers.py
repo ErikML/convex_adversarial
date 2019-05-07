@@ -453,7 +453,7 @@ class DualDense(DualLayer):
             elif isinstance(W, Window):
                 dual_layer = DualWindow(W)
             elif isinstance(W, ExtractCliques):
-                dual_layer = DualExtractCliques()
+                dual_layer = DualExtractCliques(W)
             elif W is None:
                 dual_layer = None
             else:
