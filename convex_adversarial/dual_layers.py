@@ -452,6 +452,8 @@ class DualDense(DualLayer):
                 dual_layer = DualAddBias(W)
             elif isinstance(W, Window):
                 dual_layer = DualWindow(W)
+            elif isinstance(W, ExtractCliques):
+                dual_layer = DualExtractCliques()
             elif W is None:
                 dual_layer = None
             else:
