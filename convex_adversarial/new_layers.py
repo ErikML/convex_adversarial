@@ -83,15 +83,12 @@ class GroupConv(nn.Module):
 class SumConv(nn.Module):
   def __init__(self, num_groups):
     super(SumConv, self).__init__()
-    self.num_groups = num_groups
+    weight = torch.ones(1, num_groups, 1, 1)
+    self.register_buffer('weight', weight)    
     self.groups = 1
     self.stride = 1
     self.padding = 0
     self.bias = None
-
-  @property
-  def weight(self):
-    return torch.ones(1, self.num_groups, 1, 1)
 
   def forward(self, x):
     return F.conv2d(x, self.weight)
@@ -101,15 +98,12 @@ class Scale(nn.Module):
 
   def __init__(self, scale):
     super(Scale, self).__init__()
-    self.scale = scale
+    weight = scale * torch.ones(1, 1, 1, 1)
+    self.register_buffer('weight', weight)
     self.groups = 1
     self.stride = 1
     self.padding = 0
     self.bias = None
-
-  @property
-  def weight(self):
-    return self.scale * torch.ones(1, 1, 1, 1)
 
   def forward(self, x):
     return F.conv2d(x, self.weight)
