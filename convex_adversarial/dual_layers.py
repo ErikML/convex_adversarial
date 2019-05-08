@@ -4,13 +4,13 @@ import torch.nn.functional as F
 
 from .dual import DualLayer
 from .utils import full_bias, Dense
-from .new_layers import Window, apply_on_last_n_dim, AddBias, ExtractCliques
+from .new_layers import Window, apply_on_last_n_dim, AddBias, ExtractCliques, GroupConv, SumConv, Scale
 
 def select_layer(layer, dual_net, X, proj, norm_type, in_f, out_f, zsi,
                  zl=None, zu=None):
     if isinstance(layer, nn.Linear): 
         return DualLinear(layer, out_f)
-    elif isinstance(layer, nn.Conv2d): 
+    elif isinstance(layer, nn.Conv2d) or isinstance(layer, GroupConv) or isinstance(layer, SumConv) or isinstance(layer, Scale): 
         return DualConv2d(layer, out_f)
     elif isinstance(layer, nn.ReLU):
         if zl is None and zu is None:
@@ -148,7 +148,7 @@ def conv_transpose2d(x, *args, **kwargs):
 class DualConv2d(DualLinear): 
     def __init__(self, layer, out_features): 
         super(DualLinear, self).__init__()
-        if not isinstance(layer, nn.Conv2d):
+        if not (isinstance(layer, nn.Conv2d) or isinstance(layer, GroupConv) or isinstance(layer, SumConv) or isinstance(layer, Scale)):
             raise ValueError("Expected nn.Conv2d input.")
         self.layer = layer
         if layer.bias is None: 
@@ -442,7 +442,7 @@ class DualDense(DualLayer):
         super(DualDense, self).__init__()
         self.duals = nn.ModuleList([])
         for i,W in enumerate(dense.Ws): 
-            if isinstance(W, nn.Conv2d):
+            if isinstance(W, nn.Conv2d) or isinstance(W, GroupConv) or isinstance(W, SumConv) or isinstance(W, Scale):
                 dual_layer = DualConv2d(W, out_features)
             elif isinstance(W, nn.Linear): 
                 dual_layer = DualLinear(W, out_features)

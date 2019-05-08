@@ -1,4 +1,5 @@
 import torch.nn as nn
+from .new_layers import GroupConv, SumConv, Scale
 
 ###########################################
 # Helper function to extract fully        #
@@ -10,7 +11,7 @@ def full_bias(l, n=None):
     # output dimension of n must be specified. 
     if isinstance(l, nn.Linear): 
         return l.bias.view(1,-1)
-    elif isinstance(l, nn.Conv2d): 
+    elif isinstance(l, nn.Conv2d) or isinstance(l, GroupConv) or isinstance(layer, SumConv) or isinstance(layer, Scale): 
         if n is None: 
             raise ValueError("Need to pass n=<output dimension>")
         b = l.bias.unsqueeze(1).unsqueeze(2)
