@@ -44,7 +44,7 @@ class InfBall(DualObject):
         self.nu_x.append(dual_layer(*self.nu_x))
         self.nu_1.append(dual_layer(*self.nu_1))
 
-    def bounds(self, network=None): 
+    def bounds(self, network=None):
         if network is None:
             nu_1 = self.nu_1[-1]
             nu_x = self.nu_x[-1]
@@ -65,7 +65,7 @@ class InfBall(DualObject):
         return (nu_x - epsilon*l1, 
                 nu_x + epsilon*l1)
 
-    def objective(self, *nus): 
+    def objective(self, *nus):
         epsilon = self.epsilon
         nu = nus[-1]
         nu = nu.view(nu.size(0), nu.size(1), -1)
@@ -77,7 +77,7 @@ class InfBall(DualObject):
             l1 = epsilon*nu.abs().sum(2)
         else:
             nu_weighted = nus[-1] * self.holes
-            nu_weighted = nus[-1].view(nu_weighted.size(0), nu_weighted.size(1), -1)
+            nu_weighted = nu_weighted.view(nu_weighted.size(0), nu_weighted.size(1), -1)
             l1 = epsilon * nu_weighted.abs().sum(2)
         return -nu_x - l1
 
